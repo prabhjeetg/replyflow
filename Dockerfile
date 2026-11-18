@@ -3,7 +3,7 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
 
 COPY . .
 RUN npm run build
@@ -16,7 +16,7 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev --no-audit --no-fund; fi
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
@@ -25,6 +25,7 @@ COPY --from=builder /app/src/server ./src/server
 COPY --from=builder /app/src/lib/matcher.ts ./src/lib/matcher.ts
 COPY --from=builder /app/src/types ./src/types
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/firebase-applet-config.json* ./
 
 EXPOSE 3000
 
