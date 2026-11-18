@@ -1,0 +1,6 @@
+{
+  "name": "ReplyFlow — Free Comment-to-DM Automation",
+  "description": "Free open-source alternative to ManyChat for Instagram, Facebook Pages, and YouTube comment automation, private replies, follow-gates, and lead capture.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

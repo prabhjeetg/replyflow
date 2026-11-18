@@ -1,0 +1,198 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Hardened Global Helpers
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(ownerUid) {
+      return isSignedIn() && request.auth.uid == ownerUid;
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Helpers
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'language', 'pauseAllAutomations', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'language', 'theme', 'pauseAllAutomations', 'createdAt', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && data.language in ['en', 'hi']
+        && (!('theme' in data) || data.theme in ['light', 'dark'])
+        && data.pauseAllAutomations is bool
+        && (!('email' in data) || (data.email is string && data.email.size() <= 256))
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128))
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    function isValidRule(data) {
+      return data.keys().hasAll([
+          'userId', 'accountId', 'platform', 'name', 'status', 'targetType',
+          'matchMode', 'keywords', 'excludeKeywords', 'dmFlow', 'dmVariations',
+          'publicReplyEnabled', 'publicReplyVariations', 'leadCaptureEnabled',
+          'oneDmPerUser', 'cooldownHours', 'dailyCap', 'createdAt', 'updatedAt'
+        ])
+        && data.userId == request.auth.uid
+        && isValidId(data.accountId)
+        && data.platform in ['instagram', 'facebook', 'youtube']
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 160
+        && data.status in ['active', 'paused']
+        && data.targetType in ['all_posts', 'specific_post', 'dm_keyword', 'story_reply', 'live_comment']
+        && data.matchMode in ['contains', 'exact', 'starts_with', 'any_comment']
+        && data.keywords is list && data.keywords.size() <= 30
+        && data.excludeKeywords is list && data.excludeKeywords.size() <= 20
+        && data.dmFlow in ['simple', 'two_step', 'follow_gate']
+        && data.dmVariations is list && data.dmVariations.size() >= 1 && data.dmVariations.size() <= 10
+        && data.publicReplyEnabled is bool
+        && data.publicReplyVariations is list && data.publicReplyVariations.size() <= 10
+        && data.leadCaptureEnabled is bool
+        && data.oneDmPerUser is bool
+        && data.cooldownHours is number && data.cooldownHours >= 0 && data.cooldownHours <= 720
+        && data.dailyCap is number && data.dailyCap >= 1 && data.dailyCap <= 5000
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasAll(['userId', 'minDelaySeconds', 'maxDelaySeconds', 'hourlyDmLimit', 'timezone', 'language', 'updatedAt'])
+        && data.keys().hasOnly([
+          'userId', 'metaAppId', 'hasMetaAppSecret', 'metaVerifyToken',
+          'youtubeClientId', 'hasYoutubeClientSecret', 'hasYoutubeApiKey',
+          'minDelaySeconds', 'maxDelaySeconds', 'hourlyDmLimit',
+          'timezone', 'language', 'notificationEmail', 'updatedAt'
+        ])
+        && data.userId == request.auth.uid
+        && data.minDelaySeconds is number && data.minDelaySeconds >= 1 && data.minDelaySeconds <= 60
+        && data.maxDelaySeconds is number && data.maxDelaySeconds >= data.minDelaySeconds && data.maxDelaySeconds <= 120
+        && data.hourlyDmLimit is number && data.hourlyDmLimit >= 1 && data.hourlyDmLimit <= 500
+        && data.timezone is string && data.timezone.size() >= 1 && data.timezone.size() <= 64
+        && data.language in ['en', 'hi']
+        && data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    // 1. User Profiles
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isValidId(userId) && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'language', 'theme', 'pauseAllAutomations', 'updatedAt']);
+    }
+
+    // 2. Social Accounts (Client can read own accounts and delete/disconnect; Server Admin SDK writes tokens)
+    match /accounts/{accountId} {
+      allow get: if isValidId(accountId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isValidId(accountId) && isOwner(existing().userId);
+    }
+
+    // 3. Server-Only Secrets (Strictly denied to all client SDKs)
+    match /accountSecrets/{accountId} {
+      allow read, write: if false;
+    }
+
+    match /settingsSecrets/{userId} {
+      allow read, write: if false;
+    }
+
+    match /events/{eventId} {
+      allow read, write: if false;
+    }
+
+    // 4. Automation Rules
+    match /rules/{ruleId} {
+      allow get: if isValidId(ruleId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(ruleId)
+        && isSignedIn()
+        && isValidRule(incoming())
+        && exists(/databases/$(database)/documents/accounts/$(incoming().accountId))
+        && get(/databases/$(database)/documents/accounts/$(incoming().accountId)).data.userId == request.auth.uid;
+      allow update: if isValidId(ruleId)
+        && isOwner(existing().userId)
+        && isValidRule(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(ruleId) && isOwner(existing().userId);
+    }
+
+    // 5. Execution Logs (Server writes via Admin SDK; owner reads)
+    match /logs/{logId} {
+      allow get: if isValidId(logId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // 6. Contacts (Owner can read and toggle block/opt-out)
+    match /contacts/{contactId} {
+      allow get: if isValidId(contactId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isValidId(contactId)
+        && isOwner(existing().userId)
+        && incoming().userId == existing().userId
+        && incoming().diff(existing()).affectedKeys().hasOnly(['blocked', 'optedOut', 'optedOutAt', 'updatedAt'])
+        && incoming().blocked is bool
+        && incoming().optedOut is bool;
+    }
+
+    // 7. Leads (Server writes via Admin SDK; owner reads & deletes)
+    match /leads/{leadId} {
+      allow get: if isValidId(leadId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if isValidId(leadId) && isOwner(existing().userId);
+    }
+
+    // 8. Daily Stats Aggregates (Server writes via Admin SDK; owner reads)
+    match /stats/{statId} {
+      allow get: if isValidId(statId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // 9. Settings (Non-secret fields only)
+    match /settings/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isValidId(userId) && isOwner(userId) && isValidSettings(incoming());
+      allow update: if isValidId(userId) && isOwner(userId)
+        && isValidSettings(incoming())
+        && incoming().userId == existing().userId;
+    }
+
+    // 10. Notifications (Owner reads and marks read)
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isValidId(notificationId)
+        && isOwner(existing().userId)
+        && incoming().userId == existing().userId
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read'])
+        && incoming().read is bool;
+      allow delete: if isValidId(notificationId) && isOwner(existing().userId);
+    }
+  }
+}

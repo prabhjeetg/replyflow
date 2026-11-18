@@ -1,0 +1,266 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user preferences and global kill-switch state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "language": { "type": "string", "enum": ["en", "hi"] },
+        "theme": { "type": "string", "enum": ["light", "dark"] },
+        "pauseAllAutomations": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "language", "pauseAllAutomations", "createdAt", "updatedAt"]
+    },
+    "SocialAccount": {
+      "title": "SocialAccount",
+      "description": "Connected Instagram, Facebook Page, or YouTube channel metadata (no secrets).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "enum": ["instagram", "facebook", "youtube"] },
+        "platformAccountId": { "type": "string", "maxLength": 128 },
+        "pageId": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 160 },
+        "profilePictureUrl": { "type": "string", "maxLength": 512 },
+        "status": { "type": "string", "enum": ["connected", "expired", "error"] },
+        "tokenExpiresAt": { "type": "string", "format": "date-time" },
+        "lastRefreshedAt": { "type": "string", "format": "date-time" },
+        "youtubeQuotaUsedToday": { "type": "number" },
+        "youtubeQuotaResetDate": { "type": "string", "maxLength": 16 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "platform", "platformAccountId", "username", "status", "createdAt", "updatedAt"]
+    },
+    "AccountSecret": {
+      "title": "AccountSecret",
+      "description": "Encrypted OAuth tokens for a connected account. Server Admin SDK only.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "enum": ["instagram", "facebook", "youtube"] },
+        "accessTokenEnc": { "type": "string", "maxLength": 4096 },
+        "refreshTokenEnc": { "type": "string", "maxLength": 4096 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "platform", "accessTokenEnc", "updatedAt"]
+    },
+    "AutomationRule": {
+      "title": "AutomationRule",
+      "description": "Keyword-to-DM and public reply automation configuration.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "accountId": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "enum": ["instagram", "facebook", "youtube"] },
+        "name": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["active", "paused"] },
+        "targetType": { "type": "string", "enum": ["all_posts", "specific_post", "dm_keyword", "story_reply", "live_comment"] },
+        "targetMediaId": { "type": "string", "maxLength": 128 },
+        "targetMediaTitle": { "type": "string", "maxLength": 256 },
+        "targetMediaThumbnail": { "type": "string", "maxLength": 1024 },
+        "matchMode": { "type": "string", "enum": ["contains", "exact", "starts_with", "any_comment"] },
+        "dmFlow": { "type": "string", "enum": ["simple", "two_step", "follow_gate"] },
+        "linkUrl": { "type": "string", "maxLength": 1024 },
+        "buttonLabel": { "type": "string", "maxLength": 80 },
+        "imageUrl": { "type": "string", "maxLength": 1024 },
+        "publicReplyEnabled": { "type": "boolean" },
+        "leadCaptureEnabled": { "type": "boolean" },
+        "oneDmPerUser": { "type": "boolean" },
+        "cooldownHours": { "type": "number" },
+        "dailyCap": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "accountId", "platform", "name", "status", "targetType", "matchMode", "dmFlow", "createdAt", "updatedAt"]
+    },
+    "WebhookEvent": {
+      "title": "WebhookEvent",
+      "description": "Deduplication record for incoming Meta webhook & YouTube comment events.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "enum": ["instagram", "facebook", "youtube"] },
+        "eventKey": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "platform", "eventKey", "createdAt"]
+    },
+    "AutomationLog": {
+      "title": "AutomationLog",
+      "description": "Execution log for comment matches, DMs sent, retries, and errors.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "ruleId": { "type": "string", "maxLength": 128 },
+        "ruleName": { "type": "string", "maxLength": 160 },
+        "accountId": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "enum": ["instagram", "facebook", "youtube"] },
+        "commentId": { "type": "string", "maxLength": 256 },
+        "commenterUsername": { "type": "string", "maxLength": 128 },
+        "commentText": { "type": "string", "maxLength": 2000 },
+        "keywordMatched": { "type": "string", "maxLength": 128 },
+        "dmStatus": { "type": "string", "enum": ["queued", "sent", "delivered", "failed", "skipped", "awaiting_postback", "awaiting_follow", "public_only"] },
+        "errorMessage": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "ruleId", "platform", "dmStatus", "createdAt"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "User interaction profile, blocklist, and STOP opt-out tracking.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "platform": { "type": "string", "enum": ["instagram", "facebook", "youtube"] },
+        "platformUserId": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 128 },
+        "firstName": { "type": "string", "maxLength": 128 },
+        "blocked": { "type": "boolean" },
+        "optedOut": { "type": "boolean" },
+        "totalInteractions": { "type": "number" },
+        "lastInteractedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "platform", "platformUserId", "blocked", "optedOut"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Captured email or phone number from a DM lead capture flow.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "ruleId": { "type": "string", "maxLength": 128 },
+        "ruleName": { "type": "string", "maxLength": 160 },
+        "platform": { "type": "string", "enum": ["instagram", "facebook", "youtube"] },
+        "username": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "phone": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "ruleId", "platform", "createdAt"]
+    },
+    "DailyStat": {
+      "title": "DailyStat",
+      "description": "Pre-aggregated daily counters to minimize Firestore reads on Spark plan.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 16 },
+        "commentsReceived": { "type": "number" },
+        "dmsSent": { "type": "number" },
+        "dmsDelivered": { "type": "number" },
+        "dmsFailed": { "type": "number" },
+        "buttonClicks": { "type": "number" },
+        "linkClicks": { "type": "number" },
+        "followGateConversions": { "type": "number" },
+        "leadsCaptured": { "type": "number" }
+      },
+      "required": ["userId", "date"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "Public/non-secret automation settings per user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "metaAppId": { "type": "string", "maxLength": 128 },
+        "hasMetaAppSecret": { "type": "boolean" },
+        "metaVerifyToken": { "type": "string", "maxLength": 128 },
+        "youtubeClientId": { "type": "string", "maxLength": 256 },
+        "hasYoutubeClientSecret": { "type": "boolean" },
+        "hasYoutubeApiKey": { "type": "boolean" },
+        "minDelaySeconds": { "type": "number" },
+        "maxDelaySeconds": { "type": "number" },
+        "hourlyDmLimit": { "type": "number" },
+        "timezone": { "type": "string", "maxLength": 64 },
+        "language": { "type": "string", "enum": ["en", "hi"] },
+        "notificationEmail": { "type": "string", "maxLength": 256 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "minDelaySeconds", "maxDelaySeconds", "hourlyDmLimit", "timezone", "language"]
+    },
+    "SettingsSecret": {
+      "title": "SettingsSecret",
+      "description": "Encrypted API secrets per user. Strictly server-only.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "metaAppSecretEnc": { "type": "string", "maxLength": 1024 },
+        "youtubeClientSecretEnc": { "type": "string", "maxLength": 1024 },
+        "youtubeApiKeyEnc": { "type": "string", "maxLength": 1024 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app system alerts for expiring tokens and high error rates.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["token_expiring", "high_failure_rate", "quota_warning"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "title", "message", "read", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User preferences and global kill switch."
+    },
+    "/accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/SocialAccount" },
+      "description": "Connected social media accounts owned by userId."
+    },
+    "/accountSecrets/{accountId}": {
+      "schema": { "$ref": "#/entities/AccountSecret" },
+      "description": "Server-only encrypted OAuth tokens."
+    },
+    "/rules/{ruleId}": {
+      "schema": { "$ref": "#/entities/AutomationRule" },
+      "description": "Comment-to-DM automation rules owned by userId."
+    },
+    "/events/{eventId}": {
+      "schema": { "$ref": "#/entities/WebhookEvent" },
+      "description": "Server-only webhook deduplication records."
+    },
+    "/logs/{logId}": {
+      "schema": { "$ref": "#/entities/AutomationLog" },
+      "description": "Execution logs owned by userId."
+    },
+    "/contacts/{contactId}": {
+      "schema": { "$ref": "#/entities/Contact" },
+      "description": "Interacted audience contacts owned by userId."
+    },
+    "/leads/{leadId}": {
+      "schema": { "$ref": "#/entities/Lead" },
+      "description": "Captured email and phone leads owned by userId."
+    },
+    "/stats/{statId}": {
+      "schema": { "$ref": "#/entities/DailyStat" },
+      "description": "Daily aggregate analytics documents owned by userId."
+    },
+    "/settings/{userId}": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "Non-secret per-user automation settings."
+    },
+    "/settingsSecrets/{userId}": {
+      "schema": { "$ref": "#/entities/SettingsSecret" },
+      "description": "Server-only encrypted Meta & YouTube API secrets."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "In-app warning notifications owned by userId."
+    }
+  }
+}

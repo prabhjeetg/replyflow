@@ -1,0 +1,12 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+.replyflow-runtime.enc
+.replyflow-store.json
+.runtime-firebase-web.json
+.runtime-firebase-sa.json
