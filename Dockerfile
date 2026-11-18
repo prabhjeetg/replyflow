@@ -30,7 +30,3 @@ COPY --from=builder /app/firebase-applet-config.json* ./
 EXPOSE 3000
 
 CMD ["node", "server.ts"]
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
