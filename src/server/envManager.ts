@@ -26,13 +26,14 @@ export interface EnvProfileSummary {
   vars: EnvVarItem[];
 }
 
+const DEFAULT_PUBLIC_APP_URL = 'https://replyflow-c672.onrender.com';
+
 const DEV_APP_URL =
   process.env.APP_URL && !process.env.APP_URL.includes('MY_APP_URL')
     ? process.env.APP_URL.replace(/\/+$/, '')
-    : 'https://https://replyflow-c672.onrender.com/';
+    : DEFAULT_PUBLIC_APP_URL;
 
-const PROD_APP_URL =
-  'https://replyflow-c672.onrender.com/';
+const PROD_APP_URL = DEFAULT_PUBLIC_APP_URL;
 
 const LOCAL_APP_URL = 'http://localhost:3000';
 
@@ -151,8 +152,10 @@ export function bootstrapEnvironmentFiles(): void {
 
   const activePath = getActiveEnvPath();
   if (!fs.existsSync(activePath)) {
-    const devMap = readEnvFile(getProfileFilePath('development'));
-    fs.writeFileSync(activePath, serializeEnvMap('development', devMap), { mode: 0o600 });
+    const initialProfile: EnvProfileId =
+      process.env.NODE_ENV === 'production' ? 'production' : 'development';
+    const initialMap = readEnvFile(getProfileFilePath(initialProfile));
+    fs.writeFileSync(activePath, serializeEnvMap(initialProfile, initialMap), { mode: 0o600 });
   }
 
   // Load .env into process.env without clobbering already-injected runtime values
