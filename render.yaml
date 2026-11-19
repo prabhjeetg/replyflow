@@ -13,7 +13,7 @@ services:
       - key: PORT
         value: 3000
       - key: APP_URL
-        sync: false
+        value: https://replyflow-c672.onrender.com
       - key: ENCRYPTION_KEY
         generateValue: true
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
