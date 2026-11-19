@@ -84,16 +84,28 @@ export function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-function loadLocalOverrideConfig(): FirebaseConfigShape | null {
-  try {
-    const raw = localStorage.getItem('replyflow_firebase_config');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as FirebaseConfigShape;
-    if (parsed?.apiKey && parsed?.projectId) return parsed;
-  } catch {
-    // ignore malformed local config
+function readBuildTimeFirebaseEnv(): FirebaseConfigShape | null {
+  const apiKey = (import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
+  const authDomain = (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim();
+  const projectId = (import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
+  const appId = (import.meta.env.VITE_FIREBASE_APP_ID || '').trim();
+  const storageBucket = (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim();
+  const messagingSenderId = (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
+  const firestoreDatabaseId = (import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)').trim() || '(default)';
+
+  if (!apiKey || !projectId) {
+    return null;
   }
-  return null;
+
+  return {
+    apiKey,
+    authDomain: authDomain || `${projectId}.firebaseapp.com`,
+    projectId,
+    appId,
+    storageBucket: storageBucket || undefined,
+    messagingSenderId: messagingSenderId || undefined,
+    firestoreDatabaseId,
+  };
 }
 
 export async function initFirebaseClient(): Promise<{
@@ -106,7 +118,14 @@ export async function initFirebaseClient(): Promise<{
     return { configured: true, app: appInstance, auth: authInstance, db: dbInstance };
   }
 
-  let config: FirebaseConfigShape | null = null;
+  // Clear any legacy localStorage override so only VITE_FIREBASE_* env vars are used
+  try {
+    localStorage.removeItem('replyflow_firebase_config');
+  } catch {
+    // ignore storage errors
+  }
+
+  let config: FirebaseConfigShape | null = readBuildTimeFirebaseEnv();
 
   try {
     const res = await fetch('/api/public-config');
@@ -116,30 +135,23 @@ export async function initFirebaseClient(): Promise<{
         appUrl?: string;
       };
       if (data.appUrl) resolvedAppUrl = data.appUrl;
-      if (data.firebaseConfig?.apiKey) {
-        config = data.firebaseConfig;
+      // Fallback to runtime server env vars (same VITE_FIREBASE_* keys) when Docker builds without build args
+      if (!config && data.firebaseConfig?.apiKey && data.firebaseConfig?.projectId) {
+        config = {
+          apiKey: data.firebaseConfig.apiKey,
+          authDomain:
+            data.firebaseConfig.authDomain ||
+            `${data.firebaseConfig.projectId}.firebaseapp.com`,
+          projectId: data.firebaseConfig.projectId,
+          appId: data.firebaseConfig.appId || '',
+          storageBucket: data.firebaseConfig.storageBucket || undefined,
+          messagingSenderId: data.firebaseConfig.messagingSenderId || undefined,
+          firestoreDatabaseId: data.firebaseConfig.firestoreDatabaseId || '(default)',
+        };
       }
     }
   } catch {
-    // Fallback to Vite env / localStorage
-  }
-
-  if (!config && import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_PROJECT_ID) {
-    config = {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain:
-        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
-        `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
-      firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)',
-    };
-  }
-
-  if (!config) {
-    config = loadLocalOverrideConfig();
+    // ignore network error; rely on build-time VITE_FIREBASE_* env vars
   }
 
   if (!config || !config.apiKey || !config.projectId) {
