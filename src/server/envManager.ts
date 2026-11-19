@@ -29,10 +29,10 @@ export interface EnvProfileSummary {
 const DEV_APP_URL =
   process.env.APP_URL && !process.env.APP_URL.includes('MY_APP_URL')
     ? process.env.APP_URL.replace(/\/+$/, '')
-    : 'https://ais-dev-bcehvbtdzdkiaevgrvy2qq-811596351259.asia-southeast1.run.app';
+    : 'https://https://replyflow-c672.onrender.com/';
 
 const PROD_APP_URL =
-  'https://ais-pre-bcehvbtdzdkiaevgrvy2qq-811596351259.asia-southeast1.run.app';
+  'https://replyflow-c672.onrender.com/';
 
 const LOCAL_APP_URL = 'http://localhost:3000';
 
