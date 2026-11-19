@@ -6,6 +6,13 @@ COPY package*.json .npmrc* ./
 RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps --no-audit --no-fund; fi
 
 COPY . .
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_APP_ID
+ARG VITE_FIREBASE_STORAGE_BUCKET
+ARG VITE_FIREBASE_MESSAGING_SENDER_ID
+ARG VITE_FIREBASE_DATABASE_ID="(default)"
 RUN npm run build
 
 # Production runner
@@ -25,7 +32,6 @@ COPY --from=builder /app/src/server ./src/server
 COPY --from=builder /app/src/lib/matcher.ts ./src/lib/matcher.ts
 COPY --from=builder /app/src/types ./src/types
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/firebase-applet-config.json* ./
 
 EXPOSE 3000
 
