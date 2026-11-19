@@ -31,48 +31,28 @@ let cachedAuth: Auth | null = null;
 let cachedProjectMismatch: FirebaseProjectMismatch | null = null;
 let initAttempted = false;
 
-const RUNTIME_WEB_CONFIG_PATH = path.resolve(process.cwd(), '.runtime-firebase-web.json');
 const RUNTIME_SA_PATH = path.resolve(process.cwd(), '.runtime-firebase-sa.json');
 
 export function readFirebaseClientConfig(): FirebaseClientConfig | null {
-  const appletConfigPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(appletConfigPath)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(appletConfigPath, 'utf8'));
-      if (raw?.apiKey && raw?.projectId && raw.projectId !== 'remixed-project-id') {
-        return raw as FirebaseClientConfig;
-      }
-    } catch (err) {
-      log('warn', 'firebase_applet_config_parse_error', { error: String(err) });
-    }
+  const apiKey = (process.env.VITE_FIREBASE_API_KEY || '').trim();
+  const projectId = (process.env.VITE_FIREBASE_PROJECT_ID || '').trim();
+  if (!apiKey || !projectId) {
+    return null;
   }
 
-  if (fs.existsSync(RUNTIME_WEB_CONFIG_PATH)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(RUNTIME_WEB_CONFIG_PATH, 'utf8'));
-      if (raw?.apiKey && raw?.projectId) {
-        return raw as FirebaseClientConfig;
-      }
-    } catch {
-      // ignore malformed runtime web config
-    }
-  }
-
-  if (process.env.VITE_FIREBASE_API_KEY && process.env.VITE_FIREBASE_PROJECT_ID) {
-    return {
-      apiKey: process.env.VITE_FIREBASE_API_KEY,
-      authDomain:
-        process.env.VITE_FIREBASE_AUTH_DOMAIN ||
-        `${process.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.VITE_FIREBASE_APP_ID || '',
-      firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || '(default)',
-    };
-  }
-
-  return null;
+  return {
+    apiKey,
+    authDomain:
+      (process.env.VITE_FIREBASE_AUTH_DOMAIN || '').trim() ||
+      `${projectId}.firebaseapp.com`,
+    projectId,
+    storageBucket: (process.env.VITE_FIREBASE_STORAGE_BUCKET || '').trim() || undefined,
+    messagingSenderId:
+      (process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim() || undefined,
+    appId: (process.env.VITE_FIREBASE_APP_ID || '').trim(),
+    firestoreDatabaseId:
+      (process.env.VITE_FIREBASE_DATABASE_ID || '(default)').trim() || '(default)',
+  };
 }
 
 function parseServiceAccountJson(raw: string | undefined): Record<string, string> | null {
@@ -113,10 +93,6 @@ export async function saveRuntimeFirebaseConfig(params: {
   serviceAccountJson?: string;
 }): Promise<void> {
   if (params.webConfig && params.webConfig.apiKey && params.webConfig.projectId) {
-    // Keep AI Studio's firebase-applet-config.json intact if it already exists; write runtime override otherwise.
-    fs.writeFileSync(RUNTIME_WEB_CONFIG_PATH, JSON.stringify(params.webConfig, null, 2), {
-      mode: 0o600,
-    });
     process.env.VITE_FIREBASE_API_KEY = params.webConfig.apiKey;
     process.env.VITE_FIREBASE_AUTH_DOMAIN = params.webConfig.authDomain;
     process.env.VITE_FIREBASE_PROJECT_ID = params.webConfig.projectId;
@@ -169,7 +145,8 @@ export function getAdminServices(): {
   try {
     const clientConfig = readFirebaseClientConfig();
     const databaseId =
-      process.env.FIREBASE_DATABASE_ID ||
+      (process.env.FIREBASE_DATABASE_ID || '').trim() ||
+      (process.env.VITE_FIREBASE_DATABASE_ID || '').trim() ||
       clientConfig?.firestoreDatabaseId ||
       '(default)';
 
@@ -181,19 +158,24 @@ export function getAdminServices(): {
       (item): item is Record<string, string> => Boolean(item)
     );
 
+    const targetProjectId =
+      (process.env.VITE_FIREBASE_PROJECT_ID || '').trim() ||
+      clientConfig?.projectId ||
+      '';
+
     let serviceAccount: Record<string, string> | null = null;
-    if (clientConfig?.projectId) {
+    if (targetProjectId) {
       serviceAccount =
-        candidates.find((sa) => sa.project_id === clientConfig.projectId) || null;
+        candidates.find((sa) => sa.project_id === targetProjectId) || null;
       if (!serviceAccount && candidates.length > 0) {
         const mismatched = candidates[0];
         cachedProjectMismatch = {
           serviceAccountProjectId: mismatched.project_id,
-          clientProjectId: clientConfig.projectId,
+          clientProjectId: targetProjectId,
         };
         log('warn', 'firebase_service_account_project_mismatch_ignored', {
           serviceAccountProjectId: mismatched.project_id,
-          clientProjectId: clientConfig.projectId,
+          clientProjectId: targetProjectId,
           hint: 'Ignoring mismatched FIREBASE_SERVICE_ACCOUNT_JSON so Firebase Auth verifies tokens for the active client project.',
         });
       }
@@ -207,7 +189,7 @@ export function getAdminServices(): {
     );
     const allowAdc = hasGoogleCredsFile || process.env.USE_ADC_FIREBASE === 'true';
     const projectId =
-      clientConfig?.projectId || serviceAccount?.project_id || process.env.FIREBASE_PROJECT_ID;
+      targetProjectId || serviceAccount?.project_id || process.env.FIREBASE_PROJECT_ID || 'autodm-f6ee3';
 
     if (getApps().length === 0) {
       if (serviceAccount) {
@@ -240,7 +222,7 @@ export function getAdminServices(): {
         };
       } else {
         log('warn', 'firebase_admin_not_configured', {
-          hint: 'Set FIREBASE_SERVICE_ACCOUNT_JSON or VITE_FIREBASE_PROJECT_ID',
+          hint: 'Set FIREBASE_SERVICE_ACCOUNT_JSON and VITE_FIREBASE_* environment variables',
         });
         return {
           db: null,
